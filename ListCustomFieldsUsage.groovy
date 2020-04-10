@@ -16,6 +16,10 @@ import groovy.sql.Sql
 import org.ofbiz.core.entity.ConnectionFactory
 import org.ofbiz.core.entity.DelegatorInterface
 import java.sql.Connection
+import com.atlassian.jira.util.Visitor
+import com.atlassian.jira.issue.search.SearchRequest
+import com.atlassian.jira.issue.search.SearchRequestEntity
+import com.atlassian.jira.issue.search.SearchRequestManager
 
 def ApplicationLink getPrimaryConfluenceLink() {
     def applicationLinkService = ComponentLocator.getComponent(ApplicationLinkService.class)
@@ -34,8 +38,18 @@ Sql sql = new Sql(conn)
 
 def customFieldManager = ComponentAccessor.getCustomFieldManager()
 def workflowManager = ComponentAccessor.getWorkflowManager()
+def searchRequestManager = ComponentAccessor.getComponent(SearchRequestManager.class);
 
 def allWorkflows = workflowManager.workflows
+
+def allFilters = [] as ArrayList<SearchRequestEntity>
+
+    searchRequestManager.visitAll(new Visitor<SearchRequestEntity>() {
+        @Override
+        public void visit(SearchRequestEntity searchRequestEntity) {
+            allFilters.add(searchRequestEntity)
+        }
+    });
 
 def pageContent = new StringBuffer()
 
@@ -49,13 +63,15 @@ pageContent.append("<th>" << "Context - projects" << "</th>")
 pageContent.append("<th>" << "Context - issue types" << "</th>")
 pageContent.append("<th>" << "References in workflows" << "</th>")
 pageContent.append("<th>" << "Number of issues with values" << "</th>")
-
+pageContent.append("<th>" << "References in filters" << "</th>")
 pageContent.append("</tr>") 
 
 customFieldManager.getCustomFieldObjects().each { customField ->
+    def shortFieldName = "cf[" + customField.getIdAsLong() + "]"
+    
     pageContent.append("<tr>") 
     
-	  pageContent.append("<td>" << StringEscapeUtils.escapeHtml4(customField.fieldName) << "<br/>" << StringEscapeUtils.escapeHtml4(customField.description) << "</td>")
+	pageContent.append("<td>" << StringEscapeUtils.escapeHtml4(customField.fieldName) << "<br/>" << StringEscapeUtils.escapeHtml4(customField.description) << "</td>")
     pageContent.append("<td>" << StringEscapeUtils.escapeHtml4(customField.untranslatedName) << "<br/>" << StringEscapeUtils.escapeHtml4(customField.untranslatedDescription) << "</td>")
     pageContent.append("<td>" << customField.global << "</td>")
     
@@ -65,7 +81,7 @@ customFieldManager.getCustomFieldObjects().each { customField ->
     }
     pageContent.append("</td>")
 
-	  pageContent.append("<td>")
+	pageContent.append("<td>")
     customField.associatedIssueTypes.each { issueType ->
         if (issueType != null)
 			pageContent.append(StringEscapeUtils.escapeHtml4(issueType.name) << "<br/>")
@@ -78,7 +94,7 @@ customFieldManager.getCustomFieldObjects().each { customField ->
             workflow.getPostFunctionsForTransition(action).each { postFunction ->
                 def fieldName = postFunction.getArgs().get("field.name")
                 if (fieldName != null) {
-                    if (fieldName.equals("cf[" + customField.getIdAsLong() + "]")) {
+                    if (fieldName.equals(shortFieldName)) {
                         pageContent.append(StringEscapeUtils.escapeHtml4(workflow.displayName))
                         if (!workflow.active) {
                             pageContent.append(" (inactive workflow)")
@@ -92,23 +108,31 @@ customFieldManager.getCustomFieldObjects().each { customField ->
     }
     pageContent.append("</td>")
     
-	  pageContent.append("<td>")
+    pageContent.append("<td>")
     def sqlStmt = "SELECT COUNT(cv.issue) AS totalIssues FROM customfield cf JOIN customfieldvalue cv on cf.ID = cv.customfield WHERE cf.id = " + customField.getIdAsLong() + " GROUP BY cf.cfname"
     sql.eachRow(sqlStmt) {
         pageContent.append("${it.totalIssues}")
     }
     pageContent.append("</td>")    
     
+    
+   pageContent.append("<td>")
+    allFilters.each { filter ->
+        if (filter.request.contains(shortFieldName) || filter.request.contains(customField.fieldName)) {
+            pageContent.append(filter.name)
+        }
+    }
+    pageContent.append("</td>")    
+    
     pageContent.append("</tr>")
 }
-
 
 pageContent.append("</table>")
 
 def params = [
     type : "page",
     title: "Custom fields usage",
-    space: [
+    space: 
         key: "DEMO"
     ],
     body : [
@@ -123,7 +147,7 @@ def params = [
 def authenticatedRequestFactory = confluenceLink.createAuthenticatedRequestFactory()
 
 try {
-authenticatedRequestFactory
+  authenticatedRequestFactory
     .createRequest(Request.MethodType.POST, "rest/api/content")
     .addHeader("Content-Type", "application/json")
     .setRequestBody(new JsonBuilder(params).toString())
