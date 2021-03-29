@@ -77,6 +77,7 @@ httpclient.get(path: "/api/v4/groups") { resp, reader ->
     }
 }
 
+// This code will delete any existing labels in GitLab. Use it only when testing your migrations on a test group.
 httpclient.get(path: "/api/v4/groups/${groupId}/labels") { resp, reader ->
     reader.each { line ->
         httpclient.request(groovyx.net.http.Method.DELETE) {
@@ -85,6 +86,7 @@ httpclient.get(path: "/api/v4/groups/${groupId}/labels") { resp, reader ->
     }
 }
 
+// This code will delete any existing projects in GitLab. Use it only when testing your migrations on a test group.
 httpclient.get(path: "/api/v4/projects", query: [owned: true]) { resp, reader ->
     reader.each { line ->
         httpclient.request(groovyx.net.http.Method.DELETE) {
@@ -93,6 +95,7 @@ httpclient.get(path: "/api/v4/projects", query: [owned: true]) { resp, reader ->
     }
 }
 
+// This code will delete any existing epics in GitLab. Use it only when testing your migrations on a test group.
 httpclient.get(path: "/api/v4/groups/${groupId}/epics") { resp, reader ->
     reader.each { line ->
         httpclient.request(groovyx.net.http.Method.DELETE) {
@@ -101,6 +104,7 @@ httpclient.get(path: "/api/v4/groups/${groupId}/epics") { resp, reader ->
     }
 }
 
+// This code will delete any existing milestones in GitLab. Use it only when testing your migrations on a test group.
 httpclient.get(path: "/api/v4/groups/${groupId}/milestones") { resp, reader ->
     reader.each { line ->
         httpclient.request(groovyx.net.http.Method.DELETE) {
